@@ -1,0 +1,253 @@
+import { DashboardLayout } from "@/components/layout/DashboardLayout";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { motion } from "framer-motion";
+import { Link } from "react-router-dom";
+import { useEffect, useState } from "react";
+import api from "@/lib/api";
+import {
+  PiggyBank,
+  Plus,
+  TrendingUp,
+  Target,
+  Sparkles,
+  Wallet,
+  ArrowDownRight,
+  Clock,
+} from "lucide-react";
+
+// We'll fetch real data from the backend; initial local state
+const Savings = () => {
+  const [goals, setGoals] = useState<any[]>([]);
+  const [accounts, setAccounts] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    async function load() {
+      try {
+        setLoading(true);
+        const [savingsRes, accountsRes] = await Promise.all([
+          api.getSavings(),
+          api.getAccounts(),
+        ]);
+        if (!mounted) return;
+        setGoals(savingsRes || []);
+        setAccounts(accountsRes || []);
+      } catch (err: any) {
+        setError(err?.message || "Failed to load savings");
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    }
+    load();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  if (loading) {
+    return (
+      <DashboardLayout>
+        <div className="max-w-7xl mx-auto py-12">Loading savings...</div>
+      </DashboardLayout>
+    );
+  }
+
+  if (error) {
+    return (
+      <DashboardLayout>
+        <div className="max-w-7xl mx-auto py-12 text-red-600">{error}</div>
+      </DashboardLayout>
+    );
+  }
+
+  // derived totals
+  const totalSavings = accounts.reduce((s, a) => s + (a.balance || 0), 0);
+  const activeGoals = goals.length;
+  const monthlyContributionTotal = goals.reduce(
+    (s, g) => s + (g.autoSave?.amount || 0),
+    0
+  );
+
+  return (
+    <DashboardLayout>
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="space-y-6 max-w-7xl mx-auto"
+      >
+        {/* Header Section */}
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-bold mb-1">Savings & Goals</h1>
+            <p className="text-muted-foreground">
+              Track your savings progress and manage your financial goals
+            </p>
+          </div>
+          <div className="flex gap-3">
+            <Button variant="outline">
+              <Plus className="h-4 w-4 mr-2" />
+              New Account
+            </Button>
+            <Button>
+              <Target className="h-4 w-4 mr-2" />
+              Set New Goal
+            </Button>
+          </div>
+        </div>
+
+        {/* Quick Stats Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <Card className="p-6 hover:shadow-md transition-shadow">
+            <div className="flex items-center justify-between mb-4">
+              <div className="p-2 bg-primary/10 rounded-lg">
+                <PiggyBank className="h-6 w-6 text-primary" />
+              </div>
+              <TrendingUp className="h-4 w-4 text-success" />
+            </div>
+            <p className="text-sm text-muted-foreground">Total Savings</p>
+            <h3 className="text-2xl font-bold">£{totalSavings.toLocaleString()}</h3>
+            <p className="text-xs text-success mt-2">+3.2% from last month</p>
+          </Card>
+
+          <Card className="p-6 hover:shadow-md transition-shadow">
+            <div className="flex items-center justify-between mb-4">
+              <div className="p-2 bg-blue-500/10 rounded-lg">
+                <Target className="h-6 w-6 text-blue-500" />
+              </div>
+              <Sparkles className="h-4 w-4 text-blue-500" />
+            </div>
+            <p className="text-sm text-muted-foreground">Active Goals</p>
+            <h3 className="text-2xl font-bold">{activeGoals}</h3>
+            <p className="text-xs text-blue-500 mt-2">
+              2 goals near completion
+            </p>
+          </Card>
+
+          <Card className="p-6 hover:shadow-md transition-shadow">
+            <div className="flex items-center justify-between mb-4">
+              <div className="p-2 bg-success/10 rounded-lg">
+                <Wallet className="h-6 w-6 text-success" />
+              </div>
+              <ArrowDownRight className="h-4 w-4 text-success" />
+            </div>
+            <p className="text-sm text-muted-foreground">Monthly Savings</p>
+            <h3 className="text-2xl font-bold">£{monthlyContributionTotal.toLocaleString()}</h3>
+            <p className="text-xs text-success mt-2">
+              On track with your goals
+            </p>
+          </Card>
+        </div>
+
+        {/* Savings Goals Section */}
+        <section>
+          <h2 className="text-xl font-semibold mb-4">Your Savings Goals</h2>
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {goals.map((goal) => (
+              <Link key={goal._id} to={`/savings/${goal._id}`}>
+                <Card className="p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-blue-500/10 rounded-lg">
+                        <Target className="h-5 w-5 text-blue-500" />
+                      </div>
+                      <h3 className="font-semibold">{goal.name}</h3>
+                    </div>
+                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Progress</span>
+                      <span className="font-medium">{Math.round(goal.progress || (goal.currentAmount && goal.targetAmount ? (goal.currentAmount/goal.targetAmount)*100 : 0))}%</span>
+                    </div>
+                    <div className="h-2 bg-muted rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-blue-500 rounded-full transition-all"
+                        style={{ width: `${goal.progress}%` }}
+                      />
+                    </div>
+                    <div className="flex justify-between text-sm mt-2">
+                      <span className="text-muted-foreground">Current</span>
+                      <span className="font-medium">
+                       ${(goal.currentAmount || 0).toLocaleString()}
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Target</span>
+                      <span className="font-medium">
+                       ${(goal.targetAmount || 0).toLocaleString()}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 pt-4 border-t">
+                    <div className="flex justify-between items-center text-sm">
+                      <div className="flex items-center gap-1 text-muted-foreground">
+                        <Clock className="h-4 w-4" />
+                        <span>Monthly</span>
+                      </div>
+                        <span className="font-semibold text-primary">
+                       ${((goal.autoSave && goal.autoSave.amount) || 0).toLocaleString()}
+                      </span>
+                    </div>
+                  </div>
+                </Card>
+              </Link>
+            ))}
+          </div>
+        </section>
+
+        {/* Savings Accounts Section */}
+        <section>
+          <h2 className="text-xl font-semibold mb-4">Your Savings Accounts</h2>
+          <div className="grid md:grid-cols-2 gap-6">
+            {accounts.map((account) => (
+              <Card key={account._id || account.accountNumber} className="p-6">
+                <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-primary/10 rounded-lg">
+                      <PiggyBank className="h-5 w-5 text-primary" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold">{account.name}</h3>
+                      <p className="text-sm text-muted-foreground">
+                        Last transaction: {account.lastTransactionAt ? new Date(account.lastTransactionAt).toLocaleDateString() : "-"}
+                      </p>
+                    </div>
+                  </div>
+                  <Button variant="outline" size="sm">
+                    Manage
+                  </Button>
+                </div>
+
+                <div className="flex justify-between items-end">
+                  <div>
+                    <p className="text-sm text-muted-foreground mb-1">
+                      Balance
+                    </p>
+                    <p className="text-2xl font-bold">£{(account.balance || 0).toLocaleString()}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm text-muted-foreground mb-1">
+                      Interest Rate
+                    </p>
+                    <p className="text-success font-semibold">
+                      {account.interestRate}% APY
+                    </p>
+                  </div>
+                </div>
+              </Card>
+            ))}
+          </div>
+        </section>
+      </motion.div>
+    </DashboardLayout>
+  );
+};
+
+export default Savings;
