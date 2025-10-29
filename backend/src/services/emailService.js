@@ -45,7 +45,7 @@ const createTransporter = () => {
   // Check if we're using Hostinger SMTP
   if (process.env.SMTP_HOST && process.env.SMTP_HOST.includes('hostinger')) {
     console.log('Using Hostinger SMTP for email delivery');
-    return nodemailer.createTransporter({
+    return nodemailer.createTransport({
       host: process.env.SMTP_HOST,
       port: parseInt(process.env.SMTP_PORT) || 587,
       secure: false, // Use STARTTLS
