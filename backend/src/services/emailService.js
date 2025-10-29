@@ -36,6 +36,55 @@ const createTransporter = () => {
 
 const transporter = createTransporter();
 
+// Enhanced email sending with retry logic and better error handling
+const sendEmailWithRetry = async (mailOptions, emailType, recipient, maxRetries = 3) => {
+  let lastError;
+  
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      // Verify transporter connection before sending
+      if (attempt === 1) {
+        await transporter.verify();
+      }
+      
+      const info = await transporter.sendMail(mailOptions);
+      console.log(`${emailType} sent successfully to ${recipient} (attempt ${attempt})`);
+      return info;
+    } catch (error) {
+      lastError = error;
+      console.error(`Failed to send ${emailType} to ${recipient} (attempt ${attempt}/${maxRetries}):`, {
+        error: error.message,
+        code: error.code,
+        command: error.command,
+        response: error.response
+      });
+      
+      // Don't retry on authentication errors
+      if (error.code === 'EAUTH' || error.responseCode === 535) {
+        console.error('Authentication failed. Check SMTP credentials.');
+        throw error;
+      }
+      
+      // Don't retry on invalid recipient errors
+      if (error.responseCode >= 500 && error.responseCode < 600) {
+        console.error('Permanent email error. Not retrying.');
+        throw error;
+      }
+      
+      // Wait before retrying (exponential backoff)
+      if (attempt < maxRetries) {
+        const delay = Math.pow(2, attempt) * 1000; // 2s, 4s, 8s...
+        console.log(`Retrying in ${delay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+  }
+  
+  // If all retries failed, throw the last error
+  console.error(`All ${maxRetries} attempts failed for ${emailType} to ${recipient}`);
+  throw lastError;
+};
+
 // Professional Banking Email Template
 const createEmailTemplate = (title, content, actionButton = null, customerName = '', accountInfo = {}) => {
   const currentDate = new Date().toLocaleDateString('en-US', { 
@@ -506,13 +555,7 @@ const sendAccountCreationEmail = async (userEmail, userName, accountDetails) => 
     }
   };
   
-  try {
-    await transporter.sendMail(mailOptions);
-    console.log('Account creation email sent successfully to:', userEmail);
-  } catch (error) {
-    console.error('Failed to send account creation email:', error);
-    throw error;
-  }
+  return await sendEmailWithRetry(mailOptions, 'Account creation email', userEmail);
 };
 
 // Transfer notification email
@@ -631,13 +674,7 @@ const sendTransferNotificationEmail = async (userEmail, userName, transferDetail
     }
   };
   
-  try {
-    await transporter.sendMail(mailOptions);
-    console.log('Transfer notification email sent successfully to:', userEmail);
-  } catch (error) {
-    console.error('Failed to send transfer notification email:', error);
-    throw error;
-  }
+  return await sendEmailWithRetry(mailOptions, 'Transfer notification email', userEmail);
 };
 
 // Security alert email
@@ -763,13 +800,7 @@ const sendSecurityAlertEmail = async (userEmail, userName, alertDetails) => {
     }
   };
   
-  try {
-    await transporter.sendMail(mailOptions);
-    console.log('Security alert email sent successfully to:', userEmail);
-  } catch (error) {
-    console.error('Failed to send security alert email:', error);
-    throw error;
-  }
+  return await sendEmailWithRetry(mailOptions, 'Security alert email', userEmail);
 };
 
 // Email verification OTP
@@ -845,13 +876,7 @@ const sendEmailVerificationOTP = async (userEmail, userName, otp) => {
     }
   };
   
-  try {
-    await transporter.sendMail(mailOptions);
-    console.log('Email verification OTP sent successfully to:', userEmail);
-  } catch (error) {
-    console.error('Failed to send email verification OTP:', error);
-    throw error;
-  }
+  return await sendEmailWithRetry(mailOptions, 'Email verification OTP', userEmail);
 };
 
 // Login verification OTP
@@ -955,13 +980,7 @@ const sendLoginVerificationOTP = async (userEmail, userName, otp, loginDetails =
     }
   };
   
-  try {
-    await transporter.sendMail(mailOptions);
-    console.log('Login verification OTP sent successfully to:', userEmail);
-  } catch (error) {
-    console.error('Failed to send login verification OTP:', error);
-    throw error;
-  }
+  return await sendEmailWithRetry(mailOptions, 'Login verification OTP', userEmail);
 };
 
 module.exports = {
