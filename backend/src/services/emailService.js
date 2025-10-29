@@ -1,15 +1,40 @@
 const nodemailer = require('nodemailer');
 
-// Create transporter (configure with your email provider)
-const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST || 'smtp.gmail.com',
-  port: process.env.SMTP_PORT || 587,
-  secure: false,
-  auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS
+// Create transporter with enhanced configuration for production deployment
+const createTransporter = () => {
+  const config = {
+    host: process.env.SMTP_HOST || 'smtp.gmail.com',
+    port: parseInt(process.env.SMTP_PORT) || 587,
+    secure: process.env.SMTP_SECURE === 'true' || false, // true for 465, false for other ports
+    auth: {
+      user: process.env.SMTP_USER,
+      pass: process.env.SMTP_PASS
+    },
+    // Enhanced configuration for production deployment
+    connectionTimeout: 60000, // 60 seconds
+    greetingTimeout: 30000, // 30 seconds
+    socketTimeout: 60000, // 60 seconds
+    pool: true, // Use connection pooling
+    maxConnections: 5, // Max concurrent connections
+    maxMessages: 100, // Max messages per connection
+    rateLimit: 14, // Max messages per second
+    // TLS configuration
+    tls: {
+      rejectUnauthorized: process.env.NODE_ENV === 'production',
+      ciphers: 'SSLv3'
+    }
+  };
+
+  // Remove auth if credentials are not provided
+  if (!config.auth.user || !config.auth.pass) {
+    delete config.auth;
+    console.warn('SMTP credentials not provided. Email functionality will be limited.');
   }
-});
+
+  return nodemailer.createTransport(config);
+};
+
+const transporter = createTransporter();
 
 // Professional Banking Email Template
 const createEmailTemplate = (title, content, actionButton = null, customerName = '', accountInfo = {}) => {
