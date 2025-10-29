@@ -1,27 +1,93 @@
 const nodemailer = require('nodemailer');
 
-// Create transporter with enhanced configuration for production deployment
+// Create transporter with fallback email providers for production deployment
 const createTransporter = () => {
+  // Check if we're using SendGrid (recommended for production)
+  if (process.env.SENDGRID_API_KEY) {
+    console.log('Using SendGrid for email delivery');
+    return nodemailer.createTransport({
+      host: 'smtp.sendgrid.net',
+      port: 587,
+      secure: false,
+      auth: {
+        user: 'apikey',
+        pass: process.env.SENDGRID_API_KEY
+      },
+      connectionTimeout: 60000,
+      greetingTimeout: 30000,
+      socketTimeout: 60000,
+      pool: true,
+      maxConnections: 5,
+      rateLimit: 14
+    });
+  }
+
+  // Check if we're using Mailgun
+  if (process.env.MAILGUN_SMTP_LOGIN && process.env.MAILGUN_SMTP_PASSWORD) {
+    console.log('Using Mailgun for email delivery');
+    return nodemailer.createTransport({
+      host: 'smtp.mailgun.org',
+      port: 587,
+      secure: false,
+      auth: {
+        user: process.env.MAILGUN_SMTP_LOGIN,
+        pass: process.env.MAILGUN_SMTP_PASSWORD
+      },
+      connectionTimeout: 60000,
+      greetingTimeout: 30000,
+      socketTimeout: 60000,
+      pool: true,
+      maxConnections: 5,
+      rateLimit: 14
+    });
+  }
+
+  // Check if we're using Hostinger SMTP
+  if (process.env.SMTP_HOST && process.env.SMTP_HOST.includes('hostinger')) {
+    console.log('Using Hostinger SMTP for email delivery');
+    return nodemailer.createTransporter({
+      host: process.env.SMTP_HOST,
+      port: parseInt(process.env.SMTP_PORT) || 587,
+      secure: false, // Use STARTTLS
+      auth: {
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASS
+      },
+      connectionTimeout: 60000,
+      greetingTimeout: 30000,
+      socketTimeout: 60000,
+      pool: true,
+      maxConnections: 3, // Lower for Hostinger
+      maxMessages: 50,
+      rateLimit: 5, // Conservative rate limit
+      tls: {
+        rejectUnauthorized: false, // More lenient for Hostinger
+        ciphers: 'SSLv3'
+      },
+      // Additional options for better compatibility
+      requireTLS: true,
+      debug: process.env.NODE_ENV === 'development'
+    });
+  }
+
+  // Fallback to custom SMTP configuration
   const config = {
     host: process.env.SMTP_HOST || 'smtp.gmail.com',
     port: parseInt(process.env.SMTP_PORT) || 587,
-    secure: process.env.SMTP_SECURE === 'true' || false, // true for 465, false for other ports
+    secure: process.env.SMTP_SECURE === 'true' || false,
     auth: {
       user: process.env.SMTP_USER,
       pass: process.env.SMTP_PASS
     },
-    // Enhanced configuration for production deployment
-    connectionTimeout: 60000, // 60 seconds
-    greetingTimeout: 30000, // 30 seconds
-    socketTimeout: 60000, // 60 seconds
-    pool: true, // Use connection pooling
-    maxConnections: 5, // Max concurrent connections
-    maxMessages: 100, // Max messages per connection
-    rateLimit: 14, // Max messages per second
-    // TLS configuration
+    connectionTimeout: 60000,
+    greetingTimeout: 30000,
+    socketTimeout: 60000,
+    pool: true,
+    maxConnections: 5,
+    maxMessages: 100,
+    rateLimit: 14,
     tls: {
-      rejectUnauthorized: process.env.NODE_ENV === 'production',
-      ciphers: 'SSLv3'
+      rejectUnauthorized: process.env.NODE_ENV === 'production'
     }
   };
 
@@ -31,6 +97,7 @@ const createTransporter = () => {
     console.warn('SMTP credentials not provided. Email functionality will be limited.');
   }
 
+  console.log(`Using ${config.host} for email delivery`);
   return nodemailer.createTransport(config);
 };
 
@@ -544,7 +611,7 @@ const sendAccountCreationEmail = async (userEmail, userName, accountDetails) => 
   );
   
   const mailOptions = {
-    from: `"QuentBank Customer Service" <${process.env.SMTP_USER}>`,
+    from: `"QuentBank Customer Service" <${process.env.EMAIL_FROM || process.env.SMTP_USER}>`,
     to: userEmail,
     subject: 'Account Confirmation - Welcome to QuentBank',
     html: html,
@@ -663,7 +730,7 @@ const sendTransferNotificationEmail = async (userEmail, userName, transferDetail
   );
   
   const mailOptions = {
-    from: `"QuentBank Transaction Alerts" <${process.env.SMTP_USER}>`,
+    from: `"QuentBank Transaction Alerts" <${process.env.EMAIL_FROM || process.env.SMTP_USER}>`,
     to: userEmail,
     subject: `${isOutgoing ? '💸' : '💰'} ${title} - Transaction #${transferDetails.reference.toString().slice(-6)}`,
     html: html,
@@ -789,7 +856,7 @@ const sendSecurityAlertEmail = async (userEmail, userName, alertDetails) => {
   );
   
   const mailOptions = {
-    from: `"QuentBank Security Team" <${process.env.SMTP_USER}>`,
+    from: `"QuentBank Security Team" <${process.env.EMAIL_FROM || process.env.SMTP_USER}>`,
     to: userEmail,
     subject: '🚨 SECURITY ALERT: Unusual Account Activity Detected - Immediate Attention Required',
     html: html,
@@ -865,7 +932,7 @@ const sendEmailVerificationOTP = async (userEmail, userName, otp) => {
   );
   
   const mailOptions = {
-    from: `"QuentBank Account Verification" <${process.env.SMTP_USER}>`,
+    from: `"QuentBank Account Verification" <${process.env.EMAIL_FROM || process.env.SMTP_USER}>`,
     to: userEmail,
     subject: 'Email Verification Required - QuentBank Account Setup',
     html: html,
@@ -969,7 +1036,7 @@ const sendLoginVerificationOTP = async (userEmail, userName, otp, loginDetails =
   );
   
   const mailOptions = {
-    from: `"QuentBank Security" <${process.env.SMTP_USER}>`,
+    from: `"QuentBank Security" <${process.env.EMAIL_FROM || process.env.SMTP_USER}>`,
     to: userEmail,
     subject: '🔐 Login Verification Required - QuentBank Security Alert',
     html: html,
