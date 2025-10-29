@@ -6,6 +6,8 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "nodemon --watch src --exec node src/server.js",
+    "build": "echo 'Build completed'",
+    "vercel-build": "echo 'Vercel build completed'",
     "migrate": "node src/db.js",
     "seed": "node src/seed.js"
   },
