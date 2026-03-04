@@ -3,7 +3,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { motion } from "framer-motion";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
@@ -42,6 +42,7 @@ const Profile = () => {
     push: true,
     sms: false,
   });
+  const [uploadingImage, setUploadingImage] = useState(false);
 
   useEffect(() => {
     const fetchUserData = async () => {
@@ -85,6 +86,41 @@ const Profile = () => {
     } catch (error) {
       console.error("Failed to update profile:", error);
       toast.error("Failed to update profile. Please try again.");
+    }
+  };
+
+  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      toast.error("Please select a valid image file");
+      return;
+    }
+
+    // Validate file size (5MB max)
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Image file must be less than 5MB");
+      return;
+    }
+
+    setUploadingImage(true);
+    try {
+      const formData = new FormData();
+      formData.append('profileImage', file);
+
+      const result = await api.uploadProfileImage(formData);
+      
+      // Update local user state with new profile image
+      setUser(prev => prev ? { ...prev, profileImage: result.user.profileImage } : null);
+      
+      toast.success("Profile image updated successfully!");
+    } catch (error) {
+      console.error("Failed to upload profile image:", error);
+      toast.error("Failed to upload profile image. Please try again.");
+    } finally {
+      setUploadingImage(false);
     }
   };
 
@@ -145,6 +181,10 @@ const Profile = () => {
         <Card className="p-8 mb-6">
           <div className="flex items-center gap-6">
             <Avatar className="h-24 w-24 bg-primary/10">
+              <AvatarImage 
+                src={user.profileImage ? `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'}${user.profileImage}` : undefined}
+                alt={`${user.firstName} ${user.lastName}`}
+              />
               <AvatarFallback className="text-3xl font-bold text-primary">
                 {userInitials}
               </AvatarFallback>
@@ -163,7 +203,22 @@ const Profile = () => {
                 })}
               </div>
             </div>
-            <Button variant="outline">Change Photo</Button>
+            <div className="flex flex-col items-end gap-2">
+              <Button 
+                variant="outline" 
+                disabled={uploadingImage}
+                onClick={() => document.getElementById('profile-image-input')?.click()}
+              >
+                {uploadingImage ? "Uploading..." : "Change Photo"}
+              </Button>
+              <input
+                id="profile-image-input"
+                type="file"
+                accept="image/*"
+                onChange={handleImageChange}
+                className="hidden"
+              />
+            </div>
           </div>
         </Card>
 
@@ -414,9 +469,15 @@ const Profile = () => {
               </div>
               <Switch
                 checked={notifications.email}
-                onCheckedChange={(checked) =>
-                  setNotifications({ ...notifications, email: checked })
-                }
+                onCheckedChange={async (checked) => {
+                  setNotifications({ ...notifications, email: checked });
+                  try {
+                    await api.updateNotificationSettings({ email: checked });
+                    toast.success("Notification preferences updated");
+                  } catch (error) {
+                    toast.error("Failed to save preference");
+                  }
+                }}
               />
             </div>
             <div className="flex items-center justify-between">
@@ -428,9 +489,15 @@ const Profile = () => {
               </div>
               <Switch
                 checked={notifications.push}
-                onCheckedChange={(checked) =>
-                  setNotifications({ ...notifications, push: checked })
-                }
+                onCheckedChange={async (checked) => {
+                  setNotifications({ ...notifications, push: checked });
+                  try {
+                    await api.updateNotificationSettings({ push: checked });
+                    toast.success("Notification preferences updated");
+                  } catch (error) {
+                    toast.error("Failed to save preference");
+                  }
+                }}
               />
             </div>
             <div className="flex items-center justify-between">
@@ -442,9 +509,15 @@ const Profile = () => {
               </div>
               <Switch
                 checked={notifications.sms}
-                onCheckedChange={(checked) =>
-                  setNotifications({ ...notifications, sms: checked })
-                }
+                onCheckedChange={async (checked) => {
+                  setNotifications({ ...notifications, sms: checked });
+                  try {
+                    await api.updateNotificationSettings({ sms: checked });
+                    toast.success("Notification preferences updated");
+                  } catch (error) {
+                    toast.error("Failed to save preference");
+                  }
+                }}
               />
             </div>
           </div>

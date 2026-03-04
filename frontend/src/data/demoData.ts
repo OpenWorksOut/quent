@@ -5,7 +5,7 @@ export interface Transaction {
   amount: number;
   type: "credit" | "debit";
   category: string;
-  status: "completed" | "pending";
+  status: "completed" | "cancled";
 }
 
 export interface Account {
@@ -118,7 +118,7 @@ export const demoAccounts: Account[] = [
 export const demoTransactions: Transaction[] = [
   {
     id: "1",
-    date: "2025-10-22",
+    date: "2024-10-22",
     description: "Amazon.com Purchase",
     amount: -89.99,
     type: "debit",
@@ -127,7 +127,7 @@ export const demoTransactions: Transaction[] = [
   },
   {
     id: "2",
-    date: "2025-10-21",
+    date: "2024-10-21",
     description: "Salary Deposit",
     amount: 4250.0,
     type: "credit",
@@ -136,7 +136,7 @@ export const demoTransactions: Transaction[] = [
   },
   {
     id: "3",
-    date: "2025-10-20",
+    date: "2024-10-20",
     description: "Netflix Subscription",
     amount: -15.99,
     type: "debit",
@@ -145,7 +145,7 @@ export const demoTransactions: Transaction[] = [
   },
   {
     id: "4",
-    date: "2025-10-19",
+    date: "2024-10-19",
     description: "Grocery Store",
     amount: -142.5,
     type: "debit",
@@ -154,7 +154,7 @@ export const demoTransactions: Transaction[] = [
   },
   {
     id: "5",
-    date: "2025-10-18",
+    date: "2024-10-18",
     description: "Transfer from Sarah",
     amount: 200.0,
     type: "credit",
@@ -163,7 +163,7 @@ export const demoTransactions: Transaction[] = [
   },
   {
     id: "6",
-    date: "2025-10-17",
+    date: "2024-10-17",
     description: "Electricity Bill",
     amount: -125.0,
     type: "debit",
@@ -172,7 +172,7 @@ export const demoTransactions: Transaction[] = [
   },
   {
     id: "7",
-    date: "2025-10-16",
+    date: "2024-10-16",
     description: "ATM Withdrawal",
     amount: -200.0,
     type: "debit",
@@ -181,7 +181,7 @@ export const demoTransactions: Transaction[] = [
   },
   {
     id: "8",
-    date: "2025-10-15",
+    date: "2024-10-15",
     description: "Freelance Payment",
     amount: 850.0,
     type: "credit",
@@ -190,7 +190,7 @@ export const demoTransactions: Transaction[] = [
   },
   {
     id: "9",
-    date: "2025-10-14",
+    date: "2024-10-14",
     description: "Restaurant",
     amount: -65.25,
     type: "debit",
@@ -199,7 +199,7 @@ export const demoTransactions: Transaction[] = [
   },
   {
     id: "10",
-    date: "2025-10-13",
+    date: "2024-10-13",
     description: "Gas Station",
     amount: -55.0,
     type: "debit",
@@ -208,12 +208,12 @@ export const demoTransactions: Transaction[] = [
   },
   {
     id: "11",
-    date: "2025-10-12",
-    description: "Mobile Payment - Pending",
+    date: "2024-10-12",
+    description: "Mobile Payment - cancled",
     amount: -45.0,
     type: "debit",
     category: "Bills",
-    status: "pending",
+    status: "cancled",
   },
 ];
 

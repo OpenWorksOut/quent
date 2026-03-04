@@ -86,9 +86,7 @@ const createTransporter = () => {
     maxConnections: 5,
     maxMessages: 100,
     rateLimit: 14,
-    tls: {
-      rejectUnauthorized: process.env.NODE_ENV === 'production'
-    }
+  
   };
 
   // Remove auth if credentials are not provided

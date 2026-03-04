@@ -13,66 +13,19 @@ import {
   Info,
   Users,
 } from "lucide-react";
+import { useState, useEffect } from "react";
+import api from "@/lib/api";
+import { useToast } from "@/hooks/use-toast";
 
 type Notification = {
-  id: number;
-  type: "security" | "transaction" | "card" | "joint" | "info";
+  _id?: string;
+  id?: string;
+  type: "security" | "transaction" | "card" | "joint" | "info" | "system";
   title: string;
   message: string;
-  time: string;
-  unread?: boolean;
+  createdAt?: string;
+  status?: "read" | "unread";
 };
-
-const demoNotifications: Notification[] = [
-  {
-    id: 1,
-    type: "security",
-    title: "New Device Login",
-    message: "New login detected from London, UK",
-    time: "2 hours ago",
-    unread: true,
-  },
-  {
-    id: 2,
-    type: "transaction",
-    title: "Payment Received",
-    message: "You received$500.00 from Jane Smith",
-    time: "4 hours ago",
-    unread: true,
-  },
-  {
-    id: 3,
-    type: "card",
-    title: "Card Transaction",
-    message: "Purchase at Amazon.co.uk for$45.99",
-    time: "Yesterday",
-    unread: false,
-  },
-  {
-    id: 4,
-    type: "transaction",
-    title: "Bill Payment",
-    message: "Utility bill payment successful",
-    time: "2 days ago",
-    unread: false,
-  },
-  {
-    id: 5,
-    type: "security",
-    title: "Password Changed",
-    message: "Your account password was updated",
-    time: "3 days ago",
-    unread: false,
-  },
-  {
-    id: 6,
-    type: "joint",
-    title: "Co-owner Added",
-    message: "Sarah Johnson was added as a co-owner to Family Joint",
-    time: "1 hour ago",
-    unread: true,
-  },
-];
 
 const NotificationItem = ({ notification }: { notification: Notification }) => {
   const icon = (() => {
@@ -90,9 +43,14 @@ const NotificationItem = ({ notification }: { notification: Notification }) => {
     }
   })();
 
+  const isUnread = notification.status === "unread";
+  const timeAgo = notification.createdAt
+    ? new Date(notification.createdAt).toLocaleDateString()
+    : "Unknown";
+
   return (
     <Card
-      className={`p-4 ${notification.unread ? "ring-1 ring-primary/20" : ""}`}
+      className={`p-4 ${isUnread ? "ring-1 ring-primary/20 bg-primary/5" : ""}`}
     >
       <div className="flex items-start gap-4">
         <div className="pt-1">{icon}</div>
@@ -101,9 +59,9 @@ const NotificationItem = ({ notification }: { notification: Notification }) => {
             <h3 className="font-semibold">{notification.title}</h3>
             <div className="flex items-center gap-2">
               <span className="text-sm text-muted-foreground">
-                {notification.time}
+                {timeAgo}
               </span>
-              {notification.unread && (
+              {isUnread && (
                 <div className="w-2 h-2 rounded-full bg-primary" />
               )}
             </div>
@@ -118,7 +76,55 @@ const NotificationItem = ({ notification }: { notification: Notification }) => {
 };
 
 const Notifications = () => {
-  const unreadCount = demoNotifications.filter((n) => n.unread).length;
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [loading, setLoading] = useState(true);
+  const { toast } = useToast();
+
+  useEffect(() => {
+    fetchNotifications();
+  }, []);
+
+  const fetchNotifications = async () => {
+    try {
+      setLoading(true);
+      const res = await api.getNotifications();
+      setNotifications(res || []);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to load notifications",
+        variant: "destructive",
+      });
+      console.error("Failed to load notifications:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const unreadCount = notifications.filter((n) => n.status === "unread").length;
+
+  const handleMarkAllRead = async () => {
+    try {
+      const unreadNotifications = notifications.filter(
+        (n) => n.status === "unread"
+      );
+      await Promise.all(
+        unreadNotifications.map((n) => api.markNotificationRead(n._id || n.id!))
+      );
+      await fetchNotifications();
+      toast({
+        title: "Success",
+        description: "All notifications marked as read",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to mark notifications as read",
+        variant: "destructive",
+      });
+      console.error("Failed to mark all as read:", error);
+    }
+  };
 
   return (
     <DashboardLayout>
@@ -140,7 +146,7 @@ const Notifications = () => {
               <Clock className="h-4 w-4 mr-2" />
               History
             </Button>
-            <Button>
+            <Button onClick={handleMarkAllRead} disabled={unreadCount === 0}>
               <CheckCircle2 className="h-4 w-4 mr-2" />
               Mark All Read
             </Button>
@@ -172,12 +178,22 @@ const Notifications = () => {
         </Card>
 
         <div className="space-y-4">
-          {demoNotifications.map((notification) => (
-            <NotificationItem
-              key={notification.id}
-              notification={notification}
-            />
-          ))}
+          {!loading && notifications.length > 0 ? (
+            notifications.map((notification) => (
+              <NotificationItem
+                key={notification._id || notification.id}
+                notification={notification}
+              />
+            ))
+          ) : loading ? (
+            <Card className="p-6 text-center">
+              <p className="text-muted-foreground">Loading notifications...</p>
+            </Card>
+          ) : (
+            <Card className="p-6 text-center">
+              <p className="text-muted-foreground">No notifications yet.</p>
+            </Card>
+          )}
         </div>
 
         <Card className="p-6 bg-gradient-primary text-white">

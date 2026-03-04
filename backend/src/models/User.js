@@ -32,21 +32,21 @@ const userSchema = new mongoose.Schema(
     financialProfile: {
       monthlyIncome: {
         amount: { type: Number, default: 0 },
-        currency: { type: String, default: "GBP" },
+        currency: { type: String, default: "USD" },
         lastUpdated: { type: Date },
       },
       monthlyBudget: {
         amount: { type: Number, default: 0 },
-        currency: { type: String, default: "GBP" },
+        currency: { type: String, default: "USD" },
         lastUpdated: { type: Date },
       },
       savingsGoal: {
         monthlyTarget: { type: Number, default: 0 },
-        currency: { type: String, default: "GBP" },
+        currency: { type: String, default: "USD" },
         lastUpdated: { type: Date },
       },
       preferences: {
-        defaultCurrency: { type: String, default: "GBP" },
+        defaultCurrency: { type: String, default: "USD" },
         notificationSettings: {
           email: { type: Boolean, default: true },
           push: { type: Boolean, default: true },
@@ -78,6 +78,14 @@ const userSchema = new mongoose.Schema(
     twoFactorEnabled: {
       type: Boolean,
       default: false,
+    },
+    inheritanceLocked: {
+      type: Boolean,
+      default: false,
+    },
+    bankManagerEmail: {
+      type: String,
+      default: "joshuahartford@quentbank.com",
     },
     status: {
       type: String,

@@ -1,6 +1,7 @@
 const Account = require("../models/Account");
 const Transaction = require("../models/Transaction");
 const { sendAccountCreationEmail } = require("../services/emailService");
+const { notifyAccountEvent } = require("../services/notificationService");
 
 // Generate unique account number
 const generateAccountNumber = async () => {
@@ -129,6 +130,18 @@ exports.create = async (req, res) => {
       console.error("Failed to send account creation email:", emailError);
       // Don't fail the account creation if email fails
     }
+
+    // Create notification for the user
+    try {
+      await notifyAccountEvent(req.user._id, "created", {
+        accountName: account.name,
+        accountType: account.accountType,
+        accountId: account._id,
+      });
+    } catch (notificationError) {
+      console.error("Failed to create account notification:", notificationError);
+      // Don't fail the account creation if notification fails
+    }
     
     res.status(201).json({
       id: account._id,
@@ -216,6 +229,116 @@ exports.setWithdrawals = async (req, res) => {
       account.limitations.withdrawalLimit =
         Number(req.body.withdrawalLimit) || account.limitations.withdrawalLimit;
     }
+    await account.save();
+    res.json(account);
+  } catch (err) {
+    res.status(400).json({ message: err.message });
+  }
+};
+
+// Add a co-owner to a joint account
+exports.addCoOwner = async (req, res) => {
+  try {
+    const { email, permissions = "full" } = req.body;
+    const account = await Account.findById(req.params.id);
+    
+    if (!account) return res.status(404).json({ message: "Account not found" });
+    if (!account.checkPermission(req.user._id, "full"))
+      return res.status(403).json({ message: "Forbidden - only account owner can add members" });
+    
+    const User = require("../models/User");
+    const newOwner = await User.findOne({ email });
+    if (!newOwner)
+      return res.status(400).json({ message: "User with this email not found" });
+    
+    // Prevent adding self
+    if (newOwner._id.toString() === req.user._id.toString())
+      return res.status(400).json({ message: "Cannot add yourself as a co-owner" });
+    
+    // Check if already a co-owner
+    const alreadyAdded = account.secondaryOwners?.some(
+      (owner) => owner.user.toString() === newOwner._id.toString()
+    );
+    if (alreadyAdded)
+      return res.status(400).json({ message: "User is already a co-owner" });
+    
+    // Add the co-owner
+    if (!account.secondaryOwners) account.secondaryOwners = [];
+    account.secondaryOwners.push({
+      user: newOwner._id,
+      permissions,
+      status: "active",
+      addedAt: new Date(),
+    });
+    
+    await account.save();
+    await account.populate("secondaryOwners.user", "firstName lastName email");
+
+    // Create notifications for both users
+    try {
+      const ownerName = `${newOwner.firstName} ${newOwner.lastName}`;
+      
+      // Notify the account owner
+      await notifyAccountEvent(req.user._id, "co-owner-added", {
+        accountName: account.name,
+        coOwnerName: ownerName,
+        accountId: account._id,
+      });
+
+      // Notify the new co-owner
+      await notifyAccountEvent(newOwner._id, "co-owner-added", {
+        accountName: account.name,
+        coOwnerName: ownerName,
+        accountId: account._id,
+      });
+    } catch (notificationError) {
+      console.error("Failed to create co-owner notification:", notificationError);
+    }
+
+    res.status(201).json(account);
+  } catch (err) {
+    res.status(400).json({ message: err.message });
+  }
+};
+
+// Remove a co-owner from an account
+exports.removeCoOwner = async (req, res) => {
+  try {
+    const account = await Account.findById(req.params.id);
+    
+    if (!account) return res.status(404).json({ message: "Account not found" });
+    if (!account.checkPermission(req.user._id, "full"))
+      return res.status(403).json({ message: "Forbidden - only account owner can remove members" });
+    
+    // Remove the secondary owner
+    account.secondaryOwners = account.secondaryOwners?.filter(
+      (owner) => owner.user.toString() !== req.params.ownerId
+    ) || [];
+    
+    await account.save();
+    res.json(account);
+  } catch (err) {
+    res.status(400).json({ message: err.message });
+  }
+};
+
+// Update co-owner permissions
+exports.updateCoOwner = async (req, res) => {
+  try {
+    const { permissions } = req.body;
+    const account = await Account.findById(req.params.id);
+    
+    if (!account) return res.status(404).json({ message: "Account not found" });
+    if (!account.checkPermission(req.user._id, "full"))
+      return res.status(403).json({ message: "Forbidden" });
+    
+    const owner = account.secondaryOwners?.find(
+      (o) => o.user.toString() === req.params.ownerId
+    );
+    if (!owner)
+      return res.status(404).json({ message: "Co-owner not found" });
+    
+    owner.permissions = permissions;
     await account.save();
     res.json(account);
   } catch (err) {

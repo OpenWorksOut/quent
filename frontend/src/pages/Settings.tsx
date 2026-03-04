@@ -1,9 +1,11 @@
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
-import { demoAccounts } from "@/data/demoData";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
+import api from "@/lib/api";
+import { useToast } from "@/hooks/use-toast";
+import { useState, useEffect } from "react";
 import {
   Bell,
   Shield,
@@ -135,6 +137,26 @@ const settingsGroups = [
 ];
 
 const Settings = () => {
+  const [accounts, setAccounts] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const { toast } = useToast();
+
+  useEffect(() => {
+    api.getAccounts()
+      .then((res) => setAccounts(res || []))
+      .catch((error) => {
+        toast({
+          title: "Error",
+          description: "Failed to load accounts",
+          variant: "destructive",
+        });
+        console.error("Failed to load accounts:", error);
+      })
+      .finally(() => setLoading(false));
+  }, [toast]);
+
+  const jointAccounts = accounts.filter((a) => a.accountType === "joint");
+
   return (
     <DashboardLayout>
       <motion.div
@@ -175,10 +197,9 @@ const Settings = () => {
                 Manage co-owners, permissions, and shared account settings for
                 your joint accounts.
               </p>
-              {demoAccounts
-                .filter((a) => a.type === "joint")
-                .map((acc) => (
-                  <div key={acc.id} className="mb-3">
+              {!loading && jointAccounts.length > 0 ? (
+                jointAccounts.map((acc) => (
+                  <div key={acc._id} className="mb-3">
                     <div className="font-semibold">
                       {acc.name}{" "}
                       <span className="text-xs text-muted-foreground">
@@ -186,25 +207,29 @@ const Settings = () => {
                       </span>
                     </div>
                     <div className="flex gap-2 flex-wrap mt-1">
-                      {acc.coOwners?.map((owner) => (
+                      {acc.secondaryOwners?.map((owner: any) => (
                         <span
-                          key={owner.id}
+                          key={owner.user?._id || owner.user}
                           className="bg-primary/10 rounded px-2 py-1 text-xs font-semibold"
                         >
-                          {owner.avatar} {owner.name}
+                          {owner.user?.firstName} {owner.user?.lastName}
                         </span>
                       ))}
                     </div>
                     <div className="mt-2 flex gap-2">
-                      <Button variant="outline" size="sm">
-                        Invite Co-owner
-                      </Button>
-                      <Button variant="outline" size="sm">
-                        Remove Co-owner
-                      </Button>
+                      <Link to={`/accounts/${acc._id}`}>
+                        <Button variant="outline" size="sm">
+                          Manage Members
+                        </Button>
+                      </Link>
                     </div>
                   </div>
-                ))}
+                ))
+              ) : loading ? (
+                <p className="text-sm text-muted-foreground">Loading accounts...</p>
+              ) : (
+                <p className="text-sm text-muted-foreground">No joint accounts found.</p>
+              )}
               <div className="text-xs text-muted-foreground mt-2">
                 All co-owners have equal permissions. Changes to joint account
                 settings require approval from all co-owners.

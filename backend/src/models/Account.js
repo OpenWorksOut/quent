@@ -151,20 +151,22 @@ accountSchema.pre("save", function (next) {
 
 // Method to check if a user has access to this account
 accountSchema.methods.hasAccess = function (userId) {
+  if (!this.primaryOwner) return false;
   if (this.primaryOwner.toString() === userId.toString()) return true;
   return this.secondaryOwners.some(
     (owner) =>
-      owner.user.toString() === userId.toString() && owner.status === "active"
+      owner.user && owner.user.toString() === userId.toString() && owner.status === "active"
   );
 };
 
 // Method to check specific permission level for a user
 accountSchema.methods.checkPermission = function (userId, requiredPermission) {
+  if (!this.primaryOwner) return false;
   if (this.primaryOwner.toString() === userId.toString()) return true;
 
   const secondaryOwner = this.secondaryOwners.find(
     (owner) =>
-      owner.user.toString() === userId.toString() && owner.status === "active"
+      owner.user && owner.user.toString() === userId.toString() && owner.status === "active"
   );
 
   if (!secondaryOwner) return false;

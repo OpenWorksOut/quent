@@ -57,6 +57,55 @@ exports.updateFinancialProfile = async (req, res) => {
   }
 };
 
+// Get notification settings for the user
+exports.getNotificationSettings = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const settings = user.financialProfile?.preferences?.notificationSettings || {
+      email: true,
+      push: true,
+      sms: true,
+    };
+
+    res.json(settings);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// Update notification settings for the user
+exports.updateNotificationSettings = async (req, res) => {
+  try {
+    const { email, push, sms } = req.body;
+
+    const user = await User.findByIdAndUpdate(
+      req.user._id,
+      {
+        $set: {
+          "financialProfile.preferences.notificationSettings": {
+            email: email !== undefined ? email : true,
+            push: push !== undefined ? push : true,
+            sms: sms !== undefined ? sms : true,
+          },
+        },
+      },
+      { new: true, runValidators: true }
+    );
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    res.json(user.financialProfile?.preferences?.notificationSettings || {});
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
 // Get monthly statistics including income, expenses, and savings rate
 exports.getMonthlyStatistics = async (req, res) => {
   try {

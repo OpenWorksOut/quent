@@ -10,4 +10,8 @@ router.patch("/profile", protect, finance.updateFinancialProfile);
 // Routes for monthly statistics
 router.get("/statistics/monthly", protect, finance.getMonthlyStatistics);
 
+// Routes for notification settings
+router.get("/notification-settings", protect, finance.getNotificationSettings);
+router.patch("/notification-settings", protect, finance.updateNotificationSettings);
+
 module.exports = router;

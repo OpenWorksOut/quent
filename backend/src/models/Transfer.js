@@ -23,7 +23,7 @@ const transferSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ["pending", "completed", "failed", "cancelled"],
+      enum: ["pending", "pending_inheritance", "completed", "failed", "cancelled"],
       default: "pending",
     },
     type: {

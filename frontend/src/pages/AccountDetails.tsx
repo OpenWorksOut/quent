@@ -89,27 +89,35 @@ const AccountDetails = () => {
   const handleAddMember = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      // This would be a new API endpoint to add members to joint accounts
-      console.log("Adding member:", newMember);
+      await api.addCoOwner(accountId!, newMember.email, newMember.permissions);
       toast.success("Member added successfully!");
       setShowAddMember(false);
       setNewMember({ email: "", permissions: "view" });
+      
       // Refresh account data
+      const updatedAccount = await api.request(`/accounts/${accountId}`);
+      setAccount(updatedAccount);
     } catch (error) {
       console.error("Failed to add member:", error);
-      toast.error("Failed to add member. Please try again.");
+      toast.error(
+        error instanceof Error ? error.message : "Failed to add member. Please try again."
+      );
     }
   };
 
   const handleRemoveMember = async (memberId: string) => {
     try {
-      // This would be a new API endpoint to remove members
-      console.log("Removing member:", memberId);
+      await api.removeCoOwner(accountId!, memberId);
       toast.success("Member removed successfully!");
+      
       // Refresh account data
+      const updatedAccount = await api.request(`/accounts/${accountId}`);
+      setAccount(updatedAccount);
     } catch (error) {
       console.error("Failed to remove member:", error);
-      toast.error("Failed to remove member. Please try again.");
+      toast.error(
+        error instanceof Error ? error.message : "Failed to remove member. Please try again."
+      );
     }
   };
 

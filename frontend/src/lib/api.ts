@@ -1,10 +1,40 @@
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5000/api/v1";
+const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:3000/api/v1";
 
 type RequestOptions = {
   method?: string;
   body?: any;
   token?: string | null;
 };
+
+/**
+ * Custom error class for API errors that preserves error details
+ */
+export class APIError extends Error {
+  status: number;
+  code?: string;
+  details?: string;
+  action?: string;
+  [key: string]: any;
+
+  constructor(message: string, status: number = 400, data?: any) {
+    super(message);
+    this.name = "APIError";
+    this.status = status;
+
+    // Preserve additional error fields from backend
+    if (data) {
+      this.code = data.code;
+      this.details = data.details;
+      this.action = data.action;
+      // Copy any other fields from response (like limit, shortfall, etc.)
+      Object.keys(data).forEach((key) => {
+        if (!["message", "code", "details", "action"].includes(key)) {
+          this[key] = data[key];
+        }
+      });
+    }
+  }
+}
 
 export async function request(path: string, opts: RequestOptions = {}) {
   const url = `${API_BASE}${path}`;
@@ -23,7 +53,11 @@ export async function request(path: string, opts: RequestOptions = {}) {
   const text = await res.text();
   let data: any = text ? JSON.parse(text) : null;
   if (!res.ok) {
-    throw new Error(data?.message || `Request failed ${res.status}`);
+    throw new APIError(
+      data?.message || `Request failed ${res.status}`,
+      res.status,
+      data
+    );
   }
   return data;
 }
@@ -78,6 +112,18 @@ export async function updateFinancialProfile(data: {
   return request("/finance/profile", { method: "PATCH", body: data });
 }
 
+export async function getNotificationSettings() {
+  return request("/finance/notification-settings");
+}
+
+export async function updateNotificationSettings(data: {
+  email?: boolean;
+  push?: boolean;
+  sms?: boolean;
+}) {
+  return request("/finance/notification-settings", { method: "PATCH", body: data });
+}
+
 export async function getMonthlyStatistics() {
   return request("/finance/statistics/monthly");
 }
@@ -106,6 +152,34 @@ export async function setAccountWithdrawals(
   const body: any = { enabled };
   if (withdrawalLimit !== undefined) body.withdrawalLimit = withdrawalLimit;
   return request(`/accounts/${id}/withdrawals`, { method: "PATCH", body });
+}
+
+export async function addCoOwner(
+  accountId: string,
+  email: string,
+  permissions: string = "full"
+) {
+  return request(`/accounts/${accountId}/co-owners`, {
+    method: "POST",
+    body: { email, permissions },
+  });
+}
+
+export async function removeCoOwner(accountId: string, ownerId: string) {
+  return request(`/accounts/${accountId}/co-owners/${ownerId}`, {
+    method: "DELETE",
+  });
+}
+
+export async function updateCoOwnerPermissions(
+  accountId: string,
+  ownerId: string,
+  permissions: string
+) {
+  return request(`/accounts/${accountId}/co-owners/${ownerId}`, {
+    method: "PATCH",
+    body: { permissions },
+  });
 }
 
 export async function createTransaction(body: any) {
@@ -140,6 +214,10 @@ export async function createTransfer(body: any) {
   return request("/transfers", { method: "POST", body });
 }
 
+export async function getTransfers() {
+  return request("/transfers");
+}
+
 export async function getNotifications() {
   return request("/notifications");
 }
@@ -160,6 +238,23 @@ export async function deletePaymentMethod(id: string) {
   return request(`/payment-methods/${id}`, { method: "DELETE" });
 }
 
+export async function uploadProfileImage(formData: FormData) {
+  const token = localStorage.getItem('token');
+  const response = await fetch(`${API_BASE}/users/profile-image`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+    },
+    body: formData,
+  });
+
+  if (!response.ok) {
+    throw new Error('Failed to upload profile image');
+  }
+
+  return response.json();
+}
+
 const apiDefault = {
   request,
   register,
@@ -170,12 +265,17 @@ const apiDefault = {
   me,
   getFinancialProfile,
   updateFinancialProfile,
+  getNotificationSettings,
+  updateNotificationSettings,
   getMonthlyStatistics,
   getAccounts,
   getTransactionsForUser,
   createAccount,
   updateAccount,
   setAccountWithdrawals,
+  addCoOwner,
+  removeCoOwner,
+  updateCoOwnerPermissions,
   createTransaction,
   getCards,
   getCard,
@@ -184,11 +284,13 @@ const apiDefault = {
   createSavings,
   depositSavings,
   createTransfer,
+  getTransfers,
   getNotifications,
   markNotificationRead,
   getPaymentMethods,
   createPaymentMethod,
   deletePaymentMethod,
+  uploadProfileImage,
 };
 
 export default apiDefault;

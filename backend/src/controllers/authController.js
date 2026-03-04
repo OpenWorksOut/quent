@@ -37,12 +37,16 @@ exports.register = async (req, res) => {
         `${user.firstName} ${user.lastName}`,
         otp
       );
+      res.status(201).json({ message: "OTP sent", email: user.email });
     } catch (mailErr) {
       console.error("Failed to send verification email:", mailErr);
+      // Still respond with success even if email fails - OTP is saved in DB
+      res.status(201).json({ 
+        message: "OTP generated (email delivery may be delayed)", 
+        email: user.email,
+        emailWarning: "Email service temporarily unavailable"
+      });
     }
-
-    // Do not issue token until email verified. Client should call verify-otp.
-    res.status(201).json({ message: "OTP sent", email: user.email });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -149,11 +153,14 @@ exports.resendOtp = async (req, res) => {
         `${user.firstName} ${user.lastName}`,
         otp
       );
+      res.json({ message: "OTP resent" });
     } catch (mailErr) {
       console.error("Failed to send OTP email:", mailErr);
+      res.json({ 
+        message: "OTP generated (email delivery may be delayed)",
+        emailWarning: "Email service temporarily unavailable"
+      });
     }
-
-    res.json({ message: "OTP resent" });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -184,12 +191,17 @@ exports.login = async (req, res) => {
           userAgent: req.get('User-Agent')
         }
       );
+      res.json({ message: "Login OTP sent", email: user.email, requiresOtp: true });
     } catch (mailErr) {
       console.error("Failed to send login verification email:", mailErr);
+      // Still respond with success even if email fails - OTP is saved in DB
+      res.json({ 
+        message: "Login OTP generated (email delivery may be delayed)", 
+        email: user.email, 
+        requiresOtp: true,
+        emailWarning: "Email service temporarily unavailable"
+      });
     }
-
-    // Do not issue token until OTP verified. Client should call verify-login-otp.
-    res.json({ message: "Login OTP sent", email: user.email, requiresOtp: true });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

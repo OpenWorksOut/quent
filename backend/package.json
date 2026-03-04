@@ -6,7 +6,6 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "nodemon --watch src --exec node src/server.js",
-    "build": "echo 'Build completed'",
     "vercel-build": "echo 'Vercel build completed'",
     "migrate": "node src/db.js",
     "seed": "node src/seed.js"
@@ -27,6 +26,7 @@
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^7.6.3",
     "morgan": "^1.10.0",
+    "multer": "^2.0.2",
     "node-fetch": "^3.3.2",
     "nodemailer": "^6.9.4",
     "uuid": "^9.0.0",
